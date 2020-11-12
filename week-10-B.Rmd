@@ -45,8 +45,44 @@ week_10_folds <- vfold_cv(week_10_train, v = 10)
 
 * Create a model which produces a lower RMSE on the training data. (Do not use the cross-validated data sets until the next Scene.) You may do anything you like! Our advice is to keep the same basic structure as `mod_1_wfl`, but to change the formula and to experiment with various `step_` functions. Call this workflow `mod_2_wfl`. Hints: `step_poly()` and `step_bs()` are fun to play with.
 
+```{r sc1a}
 
- 
+set.seed(9)
+
+split <- initial_split(week_10, prop = 0.8)
+train <- training(split)
+test <- testing(split)
+
+mod1_wflow <- workflow() %>%
+  add_recipe(recipe(reg_chg ~ treatment + poverty_n,
+                    data = train)) %>%
+  add_model(linear_reg() %>% set_engine("lm"))
+
+results <- mod1_wflow %>%
+  fit(data = train) %>%
+  predict(new_data = train)
+
+tibble(actual = train$reg_chg,
+       predictions = results$.pred) %>%
+  metrics(truth = actual, estimate = predictions)
+
+```
+
+```{r sc1b}
+mod2_wflow <- workflow() %>%
+  add_recipe(recipe(reg_chg ~ treatment + poverty_n + county + block_number,
+                    data = train)) %>%
+  step_interact(~ treatment*poverty_n) %>%
+  add_model(linear_reg() %>% set_engine("lm"))
+
+results <- mod2_wflow %>%
+  fit(data = train) %>%
+  predict(new_data = train)
+
+tibble(actual = train$reg_chg,
+       predictions = results$.pred) %>%
+  metrics(truth = actual, estimate = predictions)
+```
 
 ## Scene 2
 
@@ -56,7 +92,29 @@ week_10_folds <- vfold_cv(week_10_train, v = 10)
 
 * Write a few sentences explaining why a model which worked so well on week_10_train worked so poorly on week_10_folds.
 
+```{r sc2}
 
+# cross validation prevents over-fitting and helps you choose the most accurate 
+# model (compare RMSE values)
+
+# v is the number of folds
+
+folds <- vfold_cv(train, v = 10)
+
+mod1_wflow %>%
+  fit_resamples(resamples = folds) %>%
+  collect_metrics()
+
+mod2_wflow %>%
+  fit_resamples(resamples = folds) %>%
+  collect_metrics()
+
+```
+
+mod2_wflow worked better on the training dataset but performed worse on the 
+folds dataset. This is due to the problem of overfitting. More predictors will
+always improve the fit of a model to the data it was created with. However, the
+cross-validation process flags problems like overfitting or selection bias.
 
 ## Scene 3
 
@@ -68,3 +126,15 @@ week_10_folds <- vfold_cv(week_10_train, v = 10)
 
 * Write a few sentences interpreting this confidence interval.
 
+```{r sc3}
+new_obs = tibble(treatment = "local", 
+                 poverty_n = 1.5)
+
+# The expected reg_chg is 4.1% for a polling station that has undergone the
+# treatment and has a poverty_n equal to 1.5.
+
+mod1_wflow %>%
+  fit(data = week_10) %>%
+  predict(new_data = new_obs)
+
+```
